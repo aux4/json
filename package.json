@@ -1,6 +1,6 @@
 {
   "name": "@aux4/json",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "JSON cli tools",
   "main": "index.js",
   "preferGlobal": true,

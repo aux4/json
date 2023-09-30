@@ -1,6 +1,8 @@
 # @aux4/json
 JSON cli tools
 
+![npm](https://img.shields.io/npm/v/@aux4/json) 
+
 ## Install
 
 ```bash

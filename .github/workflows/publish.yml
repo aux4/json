@@ -31,7 +31,42 @@ permissions:
   contents: write
 
 jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Test
+        uses: aux4/test-package-action@v1
+        with:
+          build_command: aux4 builder linux
+          system_packages: jq
+
+  # test-darwin:
+  #   runs-on: macos-latest
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version: '1.23'
+  #
+  #     - name: Test
+  #       uses: aux4/test-package-action@v1
+  #       with:
+  #         build_command: aux4 builder darwin
+  #         system_packages: jq
+
   publish:
+    needs: [test-linux]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -44,16 +79,13 @@ jobs:
         with:
           go-version: '1.23'
 
+      - name: Install aux4
+        run: |
+          curl -fsSL https://aux4.sh | sh
+
       - name: Build
         run: |
-          GOOS=darwin GOARCH=amd64 go build -o package/dist/darwin/amd64/aux4-json .
-          GOOS=darwin GOARCH=arm64 go build -o package/dist/darwin/arm64/aux4-json .
-          GOOS=linux GOARCH=amd64 go build -o package/dist/linux/amd64/aux4-json .
-          GOOS=linux GOARCH=arm64 go build -o package/dist/linux/arm64/aux4-json .
-          GOOS=linux GOARCH=386 go build -o package/dist/linux/386/aux4-json .
-          GOOS=windows GOARCH=amd64 go build -o package/dist/windows/amd64/aux4-json.exe .
-          GOOS=windows GOARCH=arm64 go build -o package/dist/windows/arm64/aux4-json.exe .
-          GOOS=windows GOARCH=386 go build -o package/dist/windows/386/aux4-json.exe .
+          aux4 build
 
       - name: Publish package
         uses: aux4/publish-package-action@v1

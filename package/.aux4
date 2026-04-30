@@ -1,0 +1,163 @@
+{
+  "scope": "aux4",
+  "name": "json",
+  "version": "1.0.0",
+  "description": "JSON CLI tools with streaming, pagination, and high performance",
+  "license": "Apache-2.0",
+  "tags": [
+    "aux4",
+    "json",
+    "stream",
+    "pagination"
+  ],
+  "profiles": [
+    {
+      "name": "main",
+      "commands": [
+        {
+          "name": "json",
+          "execute": [
+            "profile:json"
+          ],
+          "help": {
+            "text": "JSON CLI tools with streaming, pagination, and high performance"
+          }
+        }
+      ]
+    },
+    {
+      "name": "json",
+      "commands": [
+        {
+          "name": "get",
+          "execute": [
+            "stdin:${packageDir}/aux4-json get values(path)"
+          ],
+          "help": {
+            "text": "Extract a value from JSON by path",
+            "variables": [
+              {
+                "name": "path",
+                "text": "JSON path (e.g. $.users.0.name)",
+                "default": "$",
+                "arg": true
+              }
+            ]
+          }
+        },
+        {
+          "name": "pretty",
+          "execute": [
+            "stdin:${packageDir}/aux4-json pretty"
+          ],
+          "help": {
+            "text": "Pretty-print JSON with indentation"
+          }
+        },
+        {
+          "name": "inline",
+          "execute": [
+            "stdin:${packageDir}/aux4-json inline"
+          ],
+          "help": {
+            "text": "Minify JSON to a single line"
+          }
+        },
+        {
+          "name": "index",
+          "execute": [
+            "stdin:${packageDir}/aux4-json index values(id)"
+          ],
+          "help": {
+            "text": "Index a JSON array by ID field(s)",
+            "variables": [
+              {
+                "name": "id",
+                "text": "ID field(s) separated by comma"
+              }
+            ]
+          }
+        },
+        {
+          "name": "group",
+          "execute": [
+            "stdin:${packageDir}/aux4-json group values(id)"
+          ],
+          "help": {
+            "text": "Group a JSON array by ID field(s)",
+            "variables": [
+              {
+                "name": "id",
+                "text": "ID field(s) separated by comma"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collect",
+          "execute": [
+            "stdin:${packageDir}/aux4-json collect"
+          ],
+          "help": {
+            "text": "Collect NDJSON stream into a JSON array"
+          }
+        },
+        {
+          "name": "merge",
+          "execute": [
+            "${packageDir}/aux4-json merge values(id, files)"
+          ],
+          "help": {
+            "text": "Merge multiple JSON files by ID field(s)",
+            "variables": [
+              {
+                "name": "id",
+                "text": "ID field(s) separated by comma"
+              },
+              {
+                "name": "files",
+                "text": "JSON files to merge (space-separated)",
+                "arg": true
+              }
+            ]
+          }
+        },
+        {
+          "name": "page",
+          "execute": [
+            "stdin:${packageDir}/aux4-json page values(offset, limit, stream)"
+          ],
+          "help": {
+            "text": "Paginate a JSON array",
+            "variables": [
+              {
+                "name": "offset",
+                "text": "Number of items to skip",
+                "default": "0"
+              },
+              {
+                "name": "limit",
+                "text": "Number of items to return",
+                "default": "10"
+              },
+              {
+                "name": "stream",
+                "text": "Output as NDJSON stream",
+                "default": "false"
+              }
+            ]
+          }
+        },
+        {
+          "name": "count",
+          "execute": [
+            "stdin:${packageDir}/aux4-json count"
+          ],
+          "help": {
+            "text": "Count items in a JSON array"
+          }
+        }
+      ]
+    }
+  ]
+}

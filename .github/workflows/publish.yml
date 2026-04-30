@@ -47,7 +47,6 @@ jobs:
         with:
           build_command: aux4 builder linux
           system_packages: jq
-          npm_packages: jest
 
   # test-darwin:
   #   runs-on: macos-latest

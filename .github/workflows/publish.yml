@@ -48,25 +48,25 @@ jobs:
           build_command: aux4 builder linux
           system_packages: jq
 
-  # test-darwin:
-  #   runs-on: macos-latest
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Set up Go
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version: '1.23'
-  #
-  #     - name: Test
-  #       uses: aux4/test-package-action@v1
-  #       with:
-  #         build_command: aux4 builder darwin
-  #         system_packages: jq
+  test-darwin:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Test
+        uses: aux4/test-package-action@v1
+        with:
+          build_command: aux4 builder darwin
+          system_packages: jq
 
   publish:
-    needs: [test-linux]
+    needs: [test-linux, test-darwin]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

@@ -46,7 +46,6 @@ jobs:
         uses: aux4/test-package-action@v1
         with:
           build_command: aux4 builder linux
-          system_packages: jq
 
   test-darwin:
     runs-on: macos-latest
@@ -63,7 +62,6 @@ jobs:
         uses: aux4/test-package-action@v1
         with:
           build_command: aux4 builder darwin
-          system_packages: jq
 
   publish:
     needs: [test-linux, test-darwin]

@@ -239,10 +239,6 @@ total=$(cat users.json | aux4 json count)
 echo "Total users: $total"
 ```
 
-## Performance
+## License
 
-All commands are implemented in Go for high performance and low memory usage. Key design decisions:
-
-- **Streaming I/O** -- Commands like `collect`, `pretty`, `inline`, and `count` process input as a stream, keeping memory usage constant regardless of input size.
-- **Token-level pagination** -- The `page` command with `--stream true` outputs items one at a time as NDJSON, avoiding the need to hold the entire result set in memory.
-- **No dependencies** -- The binary is statically compiled with no external runtime requirements.
+Apache-2.0

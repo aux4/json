@@ -239,6 +239,70 @@ total=$(cat users.json | aux4 json count)
 echo "Total users: $total"
 ```
 
+### `aux4 json exec`
+
+Run a command for each record read from stdin. The input can be a JSON array or an NDJSON stream (one object per line), so `exec` consumes the output of any streaming command directly.
+
+Each record is exposed to the command through aux4's `${...}` templating — the same convention as the core `each:` executor:
+
+- `${item}` — the whole record, as JSON
+- `${item.field}` — a field of the record (nested paths like `${item.user.name}` work)
+- `${index}` — the record's position, starting at `0`
+
+The raw record is also written to the command's stdin. By default `exec` stops at the first failing command; pass `--ignoreErrors true` to keep going.
+
+```bash
+... | aux4 json exec <command>
+```
+
+#### Examples
+
+```bash
+# Run a command per record
+echo '[{"file":"a.png"},{"file":"b.png"}]' | aux4 json exec 'echo resized ${item.file}'
+# resized a.png
+# resized b.png
+
+# Consume a stream and dispatch a background job per record
+aux4 queue receive --name resize | aux4 json exec 'aux4 jobs run "echo resized ${item.file}"'
+
+# Read the whole record from stdin instead of templating
+cat products.ndjson | aux4 json exec 'curl -X POST https://api.example.com/import -d @-'
+```
+
+### `aux4 json select`
+
+Project each record down to a chosen set of fields, keeping the result as JSON with types preserved. It is the JSON counterpart of `aux4 2table` and `aux4 render` — the same field notation that renders a table or a list here produces projected JSON:
+
+- `name,age,city` — keep these fields
+- `address[city,country]` — keep a nested object, selecting only its sub-fields
+- `source:output` — rename a field (source first, output second)
+- `user.email` — dot paths reach into nested objects
+- `total{format:currency}` — a trailing `{...}` display block is accepted but ignored, so specs are interchangeable with 2table/render
+
+Missing fields become `null`. With `--inputStream true`, `select` reads NDJSON and emits one projected object per line.
+
+```bash
+... | aux4 json select <structure>
+```
+
+#### Examples
+
+```bash
+# Keep a subset of fields (types preserved)
+echo '[{"id":1,"name":"Chai","price":18,"note":"drop"}]' | aux4 json select 'id,name,price'
+# [{"id":1,"name":"Chai","price":18}]
+
+# Nested selection and renaming
+echo '[{"buyerName":"Sally","address":{"city":"Austin","country":"US","zip":"78701"}}]' \
+  | aux4 json select 'buyerName:customer,address[city,country]'
+# [{"address":{"city":"Austin","country":"US"},"customer":"Sally"}]
+
+# Streaming projection (NDJSON in, NDJSON out)
+aux4 mdb stream --file inventory.mdb --table Products \
+  | aux4 json select 'ProductName:name,UnitPrice:price' --inputStream true
+```
+
 ## License
 
 Apache-2.0

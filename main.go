@@ -8,7 +8,7 @@ import (
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: aux4-json <command> [options]\n")
-		fmt.Fprintf(os.Stderr, "Commands: get, pretty, inline, index, group, collect, merge, page, count\n")
+		fmt.Fprintf(os.Stderr, "Commands: get, pretty, inline, index, group, collect, merge, page, count, exec, select\n")
 		os.Exit(1)
 	}
 
@@ -34,6 +34,10 @@ func main() {
 		runPage(args)
 	case "count":
 		runCount(args)
+	case "exec":
+		runExec(args)
+	case "select":
+		runSelect(args)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", command)
 		os.Exit(1)

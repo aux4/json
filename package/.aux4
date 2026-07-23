@@ -156,6 +156,52 @@
           "help": {
             "text": "Count items in a JSON array"
           }
+        },
+        {
+          "name": "exec",
+          "execute": [
+            "stdin:${packageDir}/aux4-json exec values(command, ignoreErrors)"
+          ],
+          "help": {
+            "text": "Run a command for each record in a JSON array or NDJSON stream",
+            "variables": [
+              {
+                "name": "command",
+                "text": "Command to run per record; use ${item}, ${item.field} and ${index}",
+                "arg": true
+              },
+              {
+                "name": "ignoreErrors",
+                "text": "Keep going when a command fails instead of stopping",
+                "default": "false"
+              }
+            ]
+          }
+        },
+        {
+          "name": "select",
+          "execute": [
+            "stdin:${packageDir}/aux4-json select values(structure, inputStream)"
+          ],
+          "help": {
+            "text": "Project records to selected fields using the 2table/render field notation",
+            "variables": [
+              {
+                "name": "structure",
+                "text": "Fields to keep, e.g. id,name,address[city,country] or source:output to rename",
+                "arg": true
+              },
+              {
+                "name": "inputStream",
+                "text": "Read NDJSON from stdin and emit one projected object per line",
+                "default": "false",
+                "options": [
+                  "true",
+                  "false"
+                ]
+              }
+            ]
+          }
         }
       ]
     }

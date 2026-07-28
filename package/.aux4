@@ -202,6 +202,95 @@
               }
             ]
           }
+        },
+        {
+          "name": "describe",
+          "execute": [
+            "stdin:${packageDir}/aux4-json describe values(path, format, maxDepth, sample, values, color)"
+          ],
+          "help": {
+            "text": "Describe the structure (schema) of a JSON document without reading it all",
+            "variables": [
+              {
+                "name": "path",
+                "text": "Describe only this sub-path, e.g. $.orders[] where [] means every element",
+                "default": "$",
+                "arg": true
+              },
+              {
+                "name": "format",
+                "text": "Output format",
+                "default": "tree",
+                "options": [
+                  "tree",
+                  "paths",
+                  "json",
+                  "jsonschema",
+                  "select"
+                ]
+              },
+              {
+                "name": "maxDepth",
+                "text": "Stop descending after this many levels; 0 for unlimited",
+                "default": "0"
+              },
+              {
+                "name": "sample",
+                "text": "Read at most this many array elements or records; 0 for all",
+                "default": "0"
+              },
+              {
+                "name": "values",
+                "text": "Include example values and enums in the output",
+                "default": "true",
+                "options": [
+                  "true",
+                  "false"
+                ]
+              },
+              {
+                "name": "color",
+                "text": "Colorize the tree and paths output; auto follows CLICOLOR_FORCE and NO_COLOR",
+                "default": "auto",
+                "options": [
+                  "auto",
+                  "always",
+                  "never"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "peek",
+          "execute": [
+            "stdin:${packageDir}/aux4-json peek values(path, limit, format)"
+          ],
+          "help": {
+            "text": "Show the first few values at a path without reading the whole document",
+            "variables": [
+              {
+                "name": "path",
+                "text": "Peek at this path, e.g. $.orders[] where [] means every element",
+                "default": "$",
+                "arg": true
+              },
+              {
+                "name": "limit",
+                "text": "How many values to show; 0 for all",
+                "default": "3"
+              },
+              {
+                "name": "format",
+                "text": "Output format; inline emits NDJSON, one value per line",
+                "default": "pretty",
+                "options": [
+                  "pretty",
+                  "inline"
+                ]
+              }
+            ]
+          }
         }
       ]
     }

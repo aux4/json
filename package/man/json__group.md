@@ -4,6 +4,8 @@ The `group` command groups a JSON array by one or more ID fields. Objects that s
 
 When multiple ID fields are provided (comma-separated), objects must match on all specified fields to be grouped together.
 
+Each group lists the id fields first, in the order they were requested, followed by the remaining fields in the order they first appeared in the input. Nothing is reordered alphabetically, and the output is identical between runs.
+
 #### Usage
 
 ```bash

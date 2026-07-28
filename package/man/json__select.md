@@ -10,6 +10,8 @@ The structure string uses the shared 2table/render notation:
 - `user.email` — dot paths reach into nested objects
 - `total{format:currency}` — a trailing `{...}` display block is accepted but ignored (so specs are interchangeable with 2table/render)
 
+Fields come out **in the order the structure lists them** -- a projection chooses fields *and their order*, so `select 'name,id'` puts `name` first regardless of where it sat in the source. Values carried across whole keep their own field order too.
+
 Missing fields become `null`. A nested selection over an array of objects projects each element.
 
 By default `select` reads a JSON array (or a single object) and emits projected JSON. With `--inputStream true` it reads NDJSON (one object per line) and emits one projected object per line, so it fits in a stream.

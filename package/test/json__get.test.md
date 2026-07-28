@@ -48,3 +48,15 @@ echo '{"name":"Alice","age":30}' | aux4 json get $.name
 ```expect
 "Alice"
 ```
+
+## field order
+
+### should never reorder object fields
+
+```execute
+echo '{"o":{"zebra":1,"apple":2,"mango":3}}' | aux4 json get '$.o' | aux4 json inline
+```
+
+```expect
+{"zebra":1,"apple":2,"mango":3}
+```

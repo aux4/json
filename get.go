@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 )
@@ -24,19 +23,14 @@ func runGet(args []string) {
 		os.Exit(1)
 	}
 
-	// Pretty-print the result
-	var parsed interface{}
-	if err := json.Unmarshal(result, &parsed); err != nil {
+	// Pretty-print the result. Indenting the raw bytes rewrites whitespace only,
+	// so field order and number formatting survive untouched.
+	output, err := indentRaw(result)
+	if err != nil {
 		// Not valid JSON (e.g. raw string), print as-is
 		fmt.Println(string(result))
 		return
 	}
 
-	output, err := json.MarshalIndent(parsed, "", "  ")
-	if err != nil {
-		fmt.Println(string(result))
-		return
-	}
-
-	fmt.Println(string(output))
+	fmt.Println(output)
 }

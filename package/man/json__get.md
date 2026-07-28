@@ -4,6 +4,8 @@ The `get` command extracts a value from JSON by path. It uses JSONPath syntax st
 
 When the result is a string, it is output without quotes. When the result is an object or array, it is output as JSON.
 
+Field order is preserved exactly as it appears in the source: only whitespace is rewritten, so the value you read back is the one the producer wrote.
+
 #### Usage
 
 ```bash

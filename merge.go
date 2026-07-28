@@ -7,6 +7,13 @@ import (
 	"strings"
 )
 
+// fileIndex holds one file's records keyed by id, remembering the order the
+// keys first appeared so the merged output is stable between runs.
+type fileIndex struct {
+	order   []string
+	records map[string][]*orderedObject
+}
+
 func runMerge(args []string) {
 	if len(args) < 1 || args[0] == "" {
 		fmt.Fprintf(os.Stderr, "Error: id parameter is required\n")
@@ -30,8 +37,7 @@ func runMerge(args []string) {
 		os.Exit(1)
 	}
 
-	// Read and index each file
-	var indexes []map[string]interface{}
+	indexes := make([]*fileIndex, 0, len(files))
 
 	for _, filePath := range files {
 		data, err := os.ReadFile(filePath)
@@ -40,94 +46,94 @@ func runMerge(args []string) {
 			os.Exit(1)
 		}
 
-		var items []map[string]interface{}
+		var items []json.RawMessage
 		if err := json.Unmarshal(data, &items); err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing file %s: %v\n", filePath, err)
 			os.Exit(1)
 		}
 
-		idx := make(map[string]interface{})
-		for _, item := range items {
-			key := generateId(item, fields)
-			if existing, ok := idx[key]; ok {
-				switch v := existing.(type) {
-				case []map[string]interface{}:
-					idx[key] = append(v, item)
-				case map[string]interface{}:
-					idx[key] = []map[string]interface{}{v, item}
-				}
-			} else {
-				idx[key] = item
+		idx := &fileIndex{records: map[string][]*orderedObject{}}
+		for _, raw := range items {
+			item, err := parseOrderedObject(raw)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error parsing file %s: %v\n", filePath, err)
+				os.Exit(1)
 			}
+			key := generateId(item, fields)
+			if _, seen := idx.records[key]; !seen {
+				idx.order = append(idx.order, key)
+			}
+			idx.records[key] = append(idx.records[key], item)
 		}
 		indexes = append(indexes, idx)
 	}
 
-	// Merge: iterate first file's index, merge with remaining
-	var merged []map[string]interface{}
+	// Walk the first file in its own record order rather than ranging over a map,
+	// which would shuffle the output between runs.
+	merged := []json.RawMessage{}
 
-	for key, value := range indexes[0] {
-		var baseItems []map[string]interface{}
-		switch v := value.(type) {
-		case map[string]interface{}:
-			baseItems = []map[string]interface{}{v}
-		case []map[string]interface{}:
-			baseItems = v
-		}
-
-		for _, baseItem := range baseItems {
-			results := mergeItem(baseItem, key, indexes[1:])
-			merged = append(merged, results...)
+	for _, key := range indexes[0].order {
+		for _, baseItem := range indexes[0].records[key] {
+			for _, result := range mergeItem(baseItem, key, indexes[1:]) {
+				merged = append(merged, result.Bytes())
+			}
 		}
 	}
 
-	output, err := json.MarshalIndent(merged, "", "  ")
+	output, err := indentRaw(rawArray(merged))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error formatting output: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Println(string(output))
+	fmt.Println(output)
 }
 
-func mergeItem(base map[string]interface{}, key string, indexes []map[string]interface{}) []map[string]interface{} {
-	results := []map[string]interface{}{copyMap(base)}
+// mergeItem folds each later file's matching records into the base record.
+// Fields keep the base record's order, with any field a later file introduces
+// appended in the order that file listed it.
+func mergeItem(base *orderedObject, key string, indexes []*fileIndex) []*orderedObject {
+	results := []*orderedObject{copyOrdered(base)}
 
 	for _, idx := range indexes {
-		found, ok := idx[key]
-		if !ok {
+		found, ok := idx.records[key]
+		if !ok || len(found) == 0 {
 			continue
 		}
 
-		switch v := found.(type) {
-		case map[string]interface{}:
+		if len(found) == 1 {
 			for i := range results {
-				for k, val := range v {
-					results[i][k] = val
-				}
+				overlay(results[i], found[0])
 			}
-		case []map[string]interface{}:
-			var expanded []map[string]interface{}
-			for _, item := range v {
-				for _, result := range results {
-					merged := copyMap(result)
-					for k, val := range item {
-						merged[k] = val
-					}
-					expanded = append(expanded, merged)
-				}
-			}
-			results = expanded
+			continue
 		}
+
+		var expanded []*orderedObject
+		for _, item := range found {
+			for _, result := range results {
+				merged := copyOrdered(result)
+				overlay(merged, item)
+				expanded = append(expanded, merged)
+			}
+		}
+		results = expanded
 	}
 
 	return results
 }
 
-func copyMap(m map[string]interface{}) map[string]interface{} {
-	cp := make(map[string]interface{}, len(m))
-	for k, v := range m {
-		cp[k] = v
+func copyOrdered(o *orderedObject) *orderedObject {
+	cp := newOrderedObject()
+	for _, key := range o.Keys() {
+		value, _ := o.Get(key)
+		cp.Set(key, value)
 	}
 	return cp
+}
+
+func overlay(dst, src *orderedObject) {
+	for _, key := range src.Keys() {
+		value, _ := src.Get(key)
+		dst.Set(key, value)
+	}
 }

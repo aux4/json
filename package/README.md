@@ -1,6 +1,12 @@
 # aux4/json
 
-JSON CLI tools with streaming, pagination, and high performance. Extract values by path, pretty-print or minify JSON, index and group arrays by fields, merge multiple files, paginate large datasets with token-level streaming, collect NDJSON streams into arrays, and count items -- all from the command line with zero dependencies.
+JSON CLI tools with streaming, pagination, and high performance. Extract values by path, pretty-print or minify JSON, index and group arrays by fields, merge multiple files, paginate large datasets with token-level streaming, collect NDJSON streams into arrays, count items, describe the structure of a file too large to read, and peek at the records inside it -- all from the command line with zero dependencies.
+
+## Field order
+
+Every command preserves the order of an object's fields. Nothing is ever sorted alphabetically on its way through — the document you read back is the one the producer wrote, which matters both for scanning output against a source and for feeding a renderer whose columns follow the field order.
+
+Where you specify an order, that order is used: `aux4 json select 'name,id'` puts `name` first no matter where it sat in the input.
 
 ## Installation
 
@@ -31,6 +37,12 @@ aux4 json merge --id id users.json profiles.json
 
 # Collect NDJSON into a JSON array
 cat stream.ndjson | aux4 json collect
+
+# Learn the structure of a file too large to read
+cat orders.json | aux4 json describe
+
+# Look at the first few records at a path
+cat orders.json | aux4 json peek '$.orders[]'
 ```
 
 ## Commands
@@ -301,6 +313,138 @@ echo '[{"buyerName":"Sally","address":{"city":"Austin","country":"US","zip":"787
 # Streaming projection (NDJSON in, NDJSON out)
 aux4 mdb stream --file inventory.mdb --table Products \
   | aux4 json select 'ProductName:name,UnitPrice:price' --inputStream true
+```
+
+### `aux4 json describe`
+
+Report the structure — the schema — of a JSON document without printing the data. It streams the input, so a multi-gigabyte file is summarised in one pass with memory proportional to the structure rather than the file.
+
+This is the command to reach for when a file is too large to read: describe it first, learn the paths, then use `get`, `select`, `page` or `count` on the parts that matter.
+
+For every position it reports the type (or a union such as `number|null`), cardinality (`array[482913]`, `array[1..37]`, `object(9)`), optionality (`note? (25%)` for a field only some records have), enums when a string or boolean field draws on a small vocabulary, an example value, and a detected string format (`date-time`, `date`, `uuid`, `email`, `uri`).
+
+Input may be a single JSON document or an NDJSON stream, which is merged into one structure. Objects with many keys that all hold the same shape — a map keyed by id — collapse to `object<N keys>` with a single `*` value shape; a wide record whose fields merely share a type is not collapsed.
+
+```bash
+... | aux4 json describe [path]
+```
+
+- `path` — describe only this sub-path, e.g. `$.orders[]` where `[]` means every element. Default `$`
+- `--format` — `tree` (default), `paths`, `json`, `jsonschema` or `select`
+- `--maxDepth` — stop descending after this many levels; `0` for unlimited. Arrays do not consume a level
+- `--sample` — read at most this many array elements or records; `0` for all. Sampled counts print as `array[100+, sampled]`
+- `--values` — include example values and enums. Default `true`
+- `--color` — `auto`, `always` or `never`. Default `auto`
+
+The `tree` and `paths` formats are colorized — cyan for paths and field names, green for types, yellow for the optional marker, magenta for value lists, grey for glyphs and examples. The `json`, `jsonschema` and `select` formats are never colorized, since they exist to be piped. Use `--color never` or `NO_COLOR=1` when feeding the output to another program.
+
+#### Examples
+
+```bash
+# The shape of a document, with counts and example values
+aux4 json describe < orders.json
+# $                  object(3)
+# ├─ exportedAt      string<date-time>         "2026-07-27T09:00:00Z"
+# ├─ source          string                    "hub"
+# └─ orders          array[4] of object(6)
+#    ├─ id           string                    "ord_01"
+#    ├─ status       string                    paid|pending|shipped
+#    ├─ total        number|null               149.9
+#    ├─ customer     object(3)
+#    │  ├─ id        string                    "c1"
+#    │  ├─ email     string<email>             "sally@aux4.io"
+#    │  └─ vip       boolean                   false|true
+#    ├─ items        array[1..3] of object(2)
+#    │  ├─ sku       string                    "A"
+#    │  └─ qty       number                    2
+#    └─ note? (25%)  string                    "rush"
+
+# A flat, greppable path per position
+aux4 json describe --format paths < orders.json
+# $.orders                   array[4]
+# $.orders[].status          string             paid|pending|shipped
+# $.orders[].customer.email  string<email>      "sally@aux4.io"
+
+# Drill into one branch only
+aux4 json describe '$.orders[].customer' < orders.json
+
+# Generate the argument for `select` instead of writing field paths by hand
+aux4 json describe '$.orders[]' --format select < orders.json
+# id,status,total,customer[id,email,vip],items[sku,qty],note
+
+# Describe an NDJSON stream
+aux4 mdb stream --file inventory.mdb --table Products | aux4 json describe
+
+# Sample a huge array and leave example values out
+aux4 json describe '$.rows[]' --sample 1000 --values false < export.json
+```
+
+`[]` stands for any element. To read one with `get`, replace it with a concrete index — `$.orders[].id` becomes `$.orders.0.id`:
+
+```bash
+cat orders.json \
+  | aux4 json get '$.orders' \
+  | aux4 json page --offset 0 --limit 50 \
+  | aux4 json select 'id,status,total,customer[id,email]'
+```
+
+`--format json` returns the structure as data for further processing, and `--format jsonschema` returns JSON Schema draft 2020-12 for validators and code generators.
+
+### `aux4 json peek`
+
+Print the first few values at a path and stop reading. This is the companion to `describe`: `describe` tells you the shape of a document, `peek` shows you what the data actually looks like.
+
+It streams and exits as soon as it has printed enough, so peeking at the head of a multi-gigabyte file costs nothing — the tail is never read, and everything off the path is skipped without being materialised. Key order is preserved exactly as it appears in the source.
+
+When the value at the path is an array, `peek` prints its first `--limit` elements. Anything else — an object, a string, a number — is printed whole as a single value.
+
+```bash
+... | aux4 json peek [path]
+```
+
+- `path` — peek at this path, e.g. `$.orders[]` where `[]` means every element. Default `$`
+- `--limit` — how many values to show; `0` for all. Default `3`
+- `--format` — `pretty` (indented) or `inline` (NDJSON, one value per line). Default `pretty`
+
+Point `peek` at an array path. Pointing it at an object prints that whole object, so on a document whose root is one large object, peek the array inside it rather than the root — run `describe` first if you do not know the shape yet.
+
+#### Examples
+
+```bash
+# The first record, indented
+echo '{"orders":[{"id":"ord_01","status":"paid"},{"id":"ord_02","status":"pending"}]}' \
+  | aux4 json peek '$.orders[]' --limit 1
+# {
+#   "id": "ord_01",
+#   "status": "paid"
+# }
+
+# One line per record
+cat orders.json | aux4 json peek '$.orders[]' --limit 2 --format inline
+# {"id":"ord_01","status":"paid","total":149.9}
+# {"id":"ord_02","status":"pending","total":10}
+
+# Every matching value at a nested path, not just the first record's
+cat orders.json | aux4 json peek '$.orders[].customer' --limit 2 --format inline
+# {"id":"c1","email":"sally@aux4.io"}
+# {"id":"c2","email":"pat@aux4.io"}
+
+# A single element by index
+cat orders.json | aux4 json peek '$.orders.1'
+```
+
+`--format inline` emits valid NDJSON, so it feeds straight into the streaming commands:
+
+```bash
+cat orders.json | aux4 json peek '$.orders[]' --format inline \
+  | aux4 json select 'id,name' --inputStream true
+```
+
+The pair that makes a large unknown file workable — shape first, then real rows:
+
+```bash
+aux4 json describe --maxDepth 2 < export.json
+aux4 json peek '$.rows[]' --limit 3 < export.json
 ```
 
 ## License

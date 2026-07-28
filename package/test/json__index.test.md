@@ -44,3 +44,15 @@ echo '[{"dept":"eng","role":"dev","name":"Alice"},{"dept":"eng","role":"qa","nam
 ```expect:partial
 **"name": "Alice"**"name": "Bob"**
 ```
+
+## field order
+
+### should never reorder record fields
+
+```execute
+echo '[{"id":1,"zebra":1,"apple":2}]' | aux4 json index --id id | aux4 json inline
+```
+
+```expect
+{"1":{"id":1,"zebra":1,"apple":2}}
+```

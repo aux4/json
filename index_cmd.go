@@ -16,28 +16,29 @@ func runIndex(args []string) {
 	id := args[0]
 	fields := strings.Split(id, ",")
 
-	index := make(map[string]interface{})
+	// Records are kept as raw bytes and the index keeps its insertion order, so
+	// both the field order inside each record and the order the keys appeared
+	// in the input survive to the output.
+	index := newOrderedObject()
+	duplicates := map[string][]json.RawMessage{}
 
 	err := streamArray(os.Stdin, func(raw json.RawMessage) error {
-		var item map[string]interface{}
-		if err := json.Unmarshal(raw, &item); err != nil {
+		item, err := parseOrderedObject(raw)
+		if err != nil {
 			return fmt.Errorf("parsing item: %w", err)
 		}
 
 		key := generateId(item, fields)
+		record := append(json.RawMessage(nil), raw...)
 
-		if existing, ok := index[key]; ok {
-			// Convert to array if not already
-			switch v := existing.(type) {
-			case []interface{}:
-				index[key] = append(v, item)
-			default:
-				index[key] = []interface{}{v, item}
-			}
-		} else {
-			index[key] = item
+		if _, seen := index.Get(key); seen {
+			duplicates[key] = append(duplicates[key], record)
+			index.Set(key, rawArray(duplicates[key]))
+			return nil
 		}
 
+		duplicates[key] = []json.RawMessage{record}
+		index.Set(key, record)
 		return nil
 	})
 
@@ -46,20 +47,20 @@ func runIndex(args []string) {
 		os.Exit(1)
 	}
 
-	output, err := json.MarshalIndent(index, "", "  ")
+	output, err := indentRaw(index.Bytes())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error formatting output: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Println(string(output))
+	fmt.Println(output)
 }
 
-func generateId(item map[string]interface{}, fields []string) string {
+func generateId(item *orderedObject, fields []string) string {
 	parts := make([]string, len(fields))
 	for i, field := range fields {
-		if val, ok := item[field]; ok {
-			parts[i] = fmt.Sprintf("%v", val)
+		if val, ok := item.Get(field); ok {
+			parts[i] = rawText(val)
 		}
 	}
 	return strings.Join(parts, "|")

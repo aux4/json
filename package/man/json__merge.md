@@ -4,6 +4,8 @@ The `merge` command merges multiple JSON files by one or more ID fields. Each fi
 
 When multiple ID fields are provided (comma-separated), objects must match on all specified fields to be merged.
 
+Merged records keep the first file's field order, with any field a later file introduces appended in the order that file listed it. Record order follows the first file, so repeated runs produce identical output.
+
 #### Usage
 
 ```bash

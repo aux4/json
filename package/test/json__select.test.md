@@ -19,7 +19,7 @@ echo '[{"id":1,"address":{"city":"Austin","country":"US","zip":"78701"}}]' | aux
 ```
 
 ```expect
-[{"address":{"city":"Austin","country":"US"},"id":1}]
+[{"id":1,"address":{"city":"Austin","country":"US"}}]
 ```
 
 ### should rename fields with source:output
@@ -29,7 +29,7 @@ echo '[{"buyerName":"Sally","total":42}]' | aux4 json select 'buyerName:customer
 ```
 
 ```expect
-[{"amount":42,"customer":"Sally"}]
+[{"customer":"Sally","amount":42}]
 ```
 
 ### should project each object in a nested array
@@ -39,7 +39,7 @@ echo '[{"id":1,"items":[{"sku":"A","qty":2,"junk":1},{"sku":"B","qty":5,"junk":9
 ```
 
 ```expect
-[{"id":1,"items":[{"qty":2,"sku":"A"},{"qty":5,"sku":"B"}]}]
+[{"id":1,"items":[{"sku":"A","qty":2},{"sku":"B","qty":5}]}]
 ```
 
 ### should return null for missing fields
@@ -73,4 +73,26 @@ printf '{"id":1,"name":"Chai","x":9}\n{"id":2,"name":"Chang","x":9}\n' | aux4 js
 ```expect
 {"id":1,"name":"Chai"}
 {"id":2,"name":"Chang"}
+```
+
+## field order
+
+### should emit fields in the order the structure asked for
+
+```execute
+echo '[{"zebra":1,"apple":2,"mango":3}]' | aux4 json select 'mango,zebra,apple'
+```
+
+```expect
+[{"mango":3,"zebra":1,"apple":2}]
+```
+
+### should keep the order of nested values that are passed through whole
+
+```execute
+echo '[{"id":1,"c":{"zebra":1,"apple":2}}]' | aux4 json select 'c,id'
+```
+
+```expect
+[{"c":{"zebra":1,"apple":2},"id":1}]
 ```

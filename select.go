@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -105,31 +106,50 @@ func parseSelectField(fieldString string) selectField {
 	return selectField{field: field, name: name}
 }
 
-// projectObject builds a new object holding only the selected fields, preserving
-// value types. Missing fields become null; nested groups recurse into objects
-// and map over arrays of objects.
-func projectObject(obj interface{}, fields []selectField) map[string]interface{} {
-	result := make(map[string]interface{}, len(fields))
+// projectRaw builds a new object holding only the selected fields, in the order
+// the structure spec listed them. A projection chooses fields *and their order*
+// -- the 2table/render notation it borrows is an ordered spec -- so the output
+// follows the spec, and values are carried across as raw bytes so nested objects
+// keep their own field order too.
+//
+// Missing fields become null; nested groups recurse into objects and map over
+// arrays of objects.
+func projectRaw(raw json.RawMessage, fields []selectField) json.RawMessage {
+	result := newOrderedObject()
+
 	for _, f := range fields {
-		if len(f.group) > 0 {
-			nested := resolvePath(obj, strings.Split(f.field, "."))
-			switch typed := nested.(type) {
-			case []interface{}:
-				arr := make([]interface{}, 0, len(typed))
-				for _, el := range typed {
-					arr = append(arr, projectObject(el, f.group))
-				}
-				result[f.name] = arr
-			case map[string]interface{}:
-				result[f.name] = projectObject(typed, f.group)
-			default:
-				result[f.name] = nil
+		value, ok := resolveRaw(raw, strings.Split(f.field, "."))
+		if !ok {
+			result.Set(f.name, json.RawMessage("null"))
+			continue
+		}
+
+		if len(f.group) == 0 {
+			result.Set(f.name, value)
+			continue
+		}
+
+		trimmed := bytes.TrimSpace(value)
+		switch {
+		case len(trimmed) > 0 && trimmed[0] == '[':
+			var arr []json.RawMessage
+			if err := json.Unmarshal(trimmed, &arr); err != nil {
+				result.Set(f.name, json.RawMessage("null"))
+				continue
 			}
-		} else {
-			result[f.name] = resolvePath(obj, strings.Split(f.field, "."))
+			projected := make([]json.RawMessage, 0, len(arr))
+			for _, el := range arr {
+				projected = append(projected, projectRaw(el, f.group))
+			}
+			result.Set(f.name, rawArray(projected))
+		case len(trimmed) > 0 && trimmed[0] == '{':
+			result.Set(f.name, projectRaw(trimmed, f.group))
+		default:
+			result.Set(f.name, json.RawMessage("null"))
 		}
 	}
-	return result
+
+	return result.Bytes()
 }
 
 // runSelect projects each record to the selected fields. Without --inputStream it
@@ -156,15 +176,14 @@ func runSelect(args []string) {
 			if line == "" {
 				continue
 			}
-			var obj interface{}
+			var obj json.RawMessage
 			dec := json.NewDecoder(strings.NewReader(line))
 			dec.UseNumber()
 			if err := dec.Decode(&obj); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: invalid JSON: %s\n", line)
 				os.Exit(1)
 			}
-			out, _ := json.Marshal(projectObject(obj, fields))
-			fmt.Println(string(out))
+			fmt.Println(string(projectRaw(obj, fields)))
 		}
 		if err := scanner.Err(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
@@ -175,22 +194,27 @@ func runSelect(args []string) {
 
 	dec := json.NewDecoder(bufio.NewReaderSize(os.Stdin, 1024*1024))
 	dec.UseNumber()
-	var input interface{}
+	var input json.RawMessage
 	if err := dec.Decode(&input); err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
 		os.Exit(1)
 	}
-	switch typed := input.(type) {
-	case []interface{}:
-		arr := make([]interface{}, 0, len(typed))
-		for _, el := range typed {
-			arr = append(arr, projectObject(el, fields))
+
+	trimmed := bytes.TrimSpace(input)
+	switch {
+	case len(trimmed) > 0 && trimmed[0] == '[':
+		var arr []json.RawMessage
+		if err := json.Unmarshal(trimmed, &arr); err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+			os.Exit(1)
 		}
-		out, _ := json.Marshal(arr)
-		fmt.Println(string(out))
-	case map[string]interface{}:
-		out, _ := json.Marshal(projectObject(typed, fields))
-		fmt.Println(string(out))
+		projected := make([]json.RawMessage, 0, len(arr))
+		for _, el := range arr {
+			projected = append(projected, projectRaw(el, fields))
+		}
+		fmt.Println(string(rawArray(projected)))
+	case len(trimmed) > 0 && trimmed[0] == '{':
+		fmt.Println(string(projectRaw(trimmed, fields)))
 	default:
 		fmt.Fprintln(os.Stderr, "Error: expected a JSON object or array")
 		os.Exit(1)

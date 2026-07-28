@@ -4,6 +4,8 @@ The `index` command transforms a JSON array into an object keyed by one or more 
 
 When multiple ID fields are provided (comma-separated), the key is the field values joined by a dash.
 
+Records are carried across untouched, so the field order inside each one -- and the order the keys appeared in the input -- both survive to the output.
+
 #### Usage
 
 ```bash

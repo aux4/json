@@ -88,7 +88,8 @@ func readStdin() ([]byte, error) {
 }
 
 // extractPath navigates a dot-separated path through JSON data.
-// Supports paths like "$.foo.bar", "foo.bar", "foo.0.name" (array index).
+// Supports paths like "$.foo.bar", "foo.bar", "foo.0.name" (array index), and
+// negative indices that count from the end, e.g. "foo.-1.name" (last element).
 func extractPath(data []byte, path string) ([]byte, error) {
 	// Strip leading $ and .
 	path = strings.TrimPrefix(path, "$")
@@ -108,10 +109,15 @@ func extractPath(data []byte, path string) ([]byte, error) {
 			if err := json.Unmarshal(current, &arr); err != nil {
 				return nil, fmt.Errorf("expected array at '%s': %w", part, err)
 			}
-			if idx < 0 || idx >= len(arr) {
+			// Negative indices count from the end: -1 is the last element.
+			resolved := idx
+			if resolved < 0 {
+				resolved += len(arr)
+			}
+			if resolved < 0 || resolved >= len(arr) {
 				return nil, fmt.Errorf("array index %d out of bounds (length %d)", idx, len(arr))
 			}
-			current = arr[idx]
+			current = arr[resolved]
 		} else {
 			// Object field
 			var obj map[string]json.RawMessage

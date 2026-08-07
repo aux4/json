@@ -12,6 +12,58 @@ echo '{"users":[{"name":"Alice"},{"name":"Bob"}]}' | aux4 json get '$.users.0.na
 "Alice"
 ```
 
+## negative array index
+
+### should get the last element with -1
+
+```execute
+echo '[{"q":"a"},{"q":"b"},{"q":"c"}]' | aux4 json get '$.-1.q'
+```
+
+```expect
+"c"
+```
+
+### should count back from the end with -2
+
+```execute
+echo '[{"q":"a"},{"q":"b"},{"q":"c"}]' | aux4 json get '$.-2.q'
+```
+
+```expect
+"b"
+```
+
+### should work on a nested array
+
+```execute
+echo '{"users":[{"name":"Alice"},{"name":"Bob"}]}' | aux4 json get '$.users.-1.name'
+```
+
+```expect
+"Bob"
+```
+
+### should reach -1 at the root
+
+```execute
+echo '[10,20,30]' | aux4 json get '$.-1'
+```
+
+```expect
+30
+```
+
+### should report a negative index that is out of bounds
+
+```execute
+echo '[1,2,3]' | aux4 json get '$.-9'
+```
+
+```error:partial
+array index -9 out of bounds (length 3)
+```
+
 ### should get an array
 
 ```execute

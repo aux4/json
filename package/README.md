@@ -49,7 +49,7 @@ cat orders.json | aux4 json peek '$.orders[]'
 
 ### `aux4 json get`
 
-Extract a value from JSON by path. Uses JSONPath syntax starting with `$`. Array elements are accessed by numeric index.
+Extract a value from JSON by path. Uses JSONPath syntax starting with `$`. Array elements are accessed by numeric index; negative indices count from the end (`-1` is the last element).
 
 ```bash
 echo '...' | aux4 json get <path>
@@ -57,7 +57,7 @@ echo '...' | aux4 json get <path>
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `path` | JSON path (e.g. `$.users.0.name`) | `$` |
+| `path` | JSON path (e.g. `$.users.0.name`, or `$.users.-1.name` for the last) | `$` |
 
 #### Examples
 
@@ -69,6 +69,10 @@ echo '{"user":{"name":"Alice","email":"alice@example.com"}}' | aux4 json get '$.
 # Get an array element
 echo '{"items":["a","b","c"]}' | aux4 json get '$.items.1'
 # Output: b
+
+# Get the last array element with a negative index
+echo '{"items":["a","b","c"]}' | aux4 json get '$.items.-1'
+# Output: c
 
 # Get the root object
 cat config.json | aux4 json get '$'

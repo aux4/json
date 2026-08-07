@@ -1,6 +1,6 @@
 #### Description
 
-The `get` command extracts a value from JSON by path. It uses JSONPath syntax starting with `$`. Object fields are accessed with dot notation and array elements by numeric index.
+The `get` command extracts a value from JSON by path. It uses JSONPath syntax starting with `$`. Object fields are accessed with dot notation and array elements by numeric index. Negative indices count from the end, so `-1` is the last element, `-2` the second to last.
 
 When the result is a string, it is output without quotes. When the result is an object or array, it is output as JSON.
 
@@ -30,6 +30,14 @@ echo '{"items":["a","b","c"]}' | aux4 json get '$.items.1'
 
 ```text
 b
+```
+
+```bash
+echo '{"items":["a","b","c"]}' | aux4 json get '$.items.-1'
+```
+
+```text
+c
 ```
 
 ```bash

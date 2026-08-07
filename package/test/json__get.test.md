@@ -112,3 +112,75 @@ echo '{"o":{"zebra":1,"apple":2,"mango":3}}' | aux4 json get '$.o' | aux4 json i
 ```expect
 {"zebra":1,"apple":2,"mango":3}
 ```
+
+## wildcard projection
+
+### should project a field across an array
+
+```execute
+echo '{"users":[{"name":"Alice"},{"name":"Bob"}]}' | aux4 json get '$.users.*.name' | aux4 json inline
+```
+
+```expect
+["Alice","Bob"]
+```
+
+### should return the elements themselves for a trailing wildcard
+
+```execute
+echo '{"users":[{"name":"Alice"},{"name":"Bob"}]}' | aux4 json get '$.users.*' | aux4 json inline
+```
+
+```expect
+[{"name":"Alice"},{"name":"Bob"}]
+```
+
+### should project across the root array
+
+```execute
+echo '[{"id":1},{"id":2},{"id":3}]' | aux4 json get '$.*.id' | aux4 json inline
+```
+
+```expect
+[1,2,3]
+```
+
+### should skip elements missing the projected field
+
+```execute
+echo '{"u":[{"name":"A"},{"x":1},{"name":"B"}]}' | aux4 json get '$.u.*.name' | aux4 json inline
+```
+
+```expect
+["A","B"]
+```
+
+### should compose a wildcard with a nested field
+
+```execute
+echo '{"users":[{"addr":{"city":"NY"}},{"addr":{"city":"LA"}}]}' | aux4 json get '$.users.*.addr.city' | aux4 json inline
+```
+
+```expect
+["NY","LA"]
+```
+
+### should support multiple wildcards
+
+```execute
+echo '{"teams":[{"members":[{"name":"A"}]},{"members":[{"name":"B"},{"name":"C"}]}]}' | aux4 json get '$.teams.*.members.*.name' | aux4 json inline
+```
+
+```expect
+[["A"],["B","C"]]
+```
+
+### should error when the wildcard target is not an array
+
+```execute
+echo '{"users":{"name":"Alice"}}' | aux4 json get '$.users.*'
+```
+
+```error:partial
+expected array at '*'
+```

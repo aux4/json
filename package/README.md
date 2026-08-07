@@ -1,6 +1,6 @@
 # aux4/json
 
-JSON CLI tools with streaming, pagination, and high performance. Extract values by path, pretty-print or minify JSON, index and group arrays by fields, merge multiple files, paginate large datasets with token-level streaming, collect NDJSON streams into arrays, count items, describe the structure of a file too large to read, and peek at the records inside it -- all from the command line with zero dependencies.
+JSON CLI tools with streaming, pagination, and high performance. Extract values by path (with wildcard projection across arrays), pretty-print or minify JSON, index and group arrays by fields, sort and filter arrays, merge multiple files, paginate large datasets with token-level streaming, collect NDJSON streams into arrays, count items, describe the structure of a file too large to read, and peek at the records inside it -- all from the command line with zero dependencies.
 
 ## Field order
 
@@ -19,6 +19,15 @@ aux4 aux4 pkger install aux4/json
 ```bash
 # Extract a value by path
 echo '{"users":[{"name":"Alice"}]}' | aux4 json get '$.users.0.name'
+
+# Project a field across an array with a wildcard
+echo '{"users":[{"name":"Alice"},{"name":"Bob"}]}' | aux4 json get '$.users.*.name'
+
+# Sort an array by a field
+echo '[{"age":30},{"age":25}]' | aux4 json sort --by age
+
+# Filter an array by a predicate
+echo '[{"age":30},{"age":25}]' | aux4 json filter age --op gt --value 26
 
 # Pretty-print JSON
 echo '{"name":"Alice","age":30}' | aux4 json pretty
@@ -51,13 +60,15 @@ cat orders.json | aux4 json peek '$.orders[]'
 
 Extract a value from JSON by path. Uses JSONPath syntax starting with `$`. Array elements are accessed by numeric index; negative indices count from the end (`-1` is the last element).
 
+A `*` segment is a **wildcard projection** across an array: `$.users.*` returns the elements themselves, and `$.users.*.name` maps every element through the rest of the path into a flat array (`["Alice","Bob"]`). Elements that do not resolve the remaining path are skipped. Wildcards compose, so `$.teams.*.members.*.name` projects each level. A `*` on a non-array is an error.
+
 ```bash
 echo '...' | aux4 json get <path>
 ```
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `path` | JSON path (e.g. `$.users.0.name`, or `$.users.-1.name` for the last) | `$` |
+| `path` | JSON path (e.g. `$.users.0.name`, `$.users.-1.name` for the last, or `$.users.*.name` to project) | `$` |
 
 #### Examples
 
@@ -73,6 +84,10 @@ echo '{"items":["a","b","c"]}' | aux4 json get '$.items.1'
 # Get the last array element with a negative index
 echo '{"items":["a","b","c"]}' | aux4 json get '$.items.-1'
 # Output: c
+
+# Project a field across an array with a wildcard
+echo '{"users":[{"name":"Alice"},{"name":"Bob"}]}' | aux4 json get '$.users.*.name'
+# Output: ["Alice","Bob"]
 
 # Get the root object
 cat config.json | aux4 json get '$'
@@ -317,6 +332,81 @@ echo '[{"buyerName":"Sally","address":{"city":"Austin","country":"US","zip":"787
 # Streaming projection (NDJSON in, NDJSON out)
 aux4 mdb stream --file inventory.mdb --table Products \
   | aux4 json select 'ProductName:name,UnitPrice:price' --inputStream true
+```
+
+### `aux4 json sort`
+
+Sort a JSON array and print the sorted array. Records are ordered by one or more keys given with `--by`, each a dot-path into the record. Repeat `--by` for a multi-key sort — earlier keys take precedence, later keys break ties. When both values at a key are numbers they compare numerically (so `9` sorts before `100`); otherwise they compare as text. With no `--by`, whole elements are compared, which sorts arrays of scalars. Records missing a key sort last. The sort is stable and never rewrites a record's field order.
+
+By default `sort` reads a JSON array; with `--inputStream true` it reads NDJSON.
+
+```bash
+... | aux4 json sort [--by <field>]... [--order asc|desc] [--inputStream true]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--by` | Field to sort by (dot-path). Repeat for multi-key. Omit to sort scalars by value | *(none)* |
+| `--order` | `asc` or `desc` | `asc` |
+| `--inputStream` | Read NDJSON from stdin instead of a JSON array | `false` |
+
+#### Examples
+
+```bash
+# Sort by a field
+echo '[{"name":"Bob","age":30},{"name":"Alice","age":25}]' | aux4 json sort --by age
+# [{"name":"Alice","age":25},{"name":"Bob","age":30}]
+
+# Numbers sort numerically, not lexically
+echo '[{"age":9},{"age":100},{"age":25}]' | aux4 json sort --by age
+# [{"age":9},{"age":25},{"age":100}]
+
+# Multi-key, descending
+echo '[{"team":"a","score":2},{"team":"a","score":9},{"team":"b","score":5}]' \
+  | aux4 json sort --by team --by score --order desc
+
+# Sort a scalar array
+echo '[3,1,2,10]' | aux4 json sort
+# [1,2,3,10]
+
+# Streaming (NDJSON in)
+aux4 mdb stream --file inventory.mdb --table Products | aux4 json sort --by UnitPrice --inputStream true
+```
+
+### `aux4 json filter`
+
+Keep the records of a JSON array whose `--field` satisfies a predicate, and print the array of matches. The field is a dot-path into each record. The operator is one of `eq` (default), `ne`, `gt`, `lt`, `gte`, `lte`, `contains`. When the field value and `--value` are both numbers they compare numerically; otherwise as text. `contains` is substring for a string field and membership for an array field. Records that do not have the field are dropped. Matching records keep their own field order.
+
+By default `filter` reads a JSON array; with `--inputStream true` it reads NDJSON.
+
+```bash
+... | aux4 json filter <field> [--op <operator>] [--value <value>] [--inputStream true]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `field` | Dot-path tested on each record (e.g. `age`, `address.city`) | required |
+| `--op` | `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, `contains` | `eq` |
+| `--value` | Value to compare the field against | *(empty)* |
+| `--inputStream` | Read NDJSON from stdin instead of a JSON array | `false` |
+
+#### Examples
+
+```bash
+# Numeric comparison
+echo '[{"name":"Alice","age":30},{"name":"Bob","age":25}]' | aux4 json filter age --op gt --value 26
+# [{"name":"Alice","age":30}]
+
+# String equality on a nested field
+echo '[{"addr":{"city":"NY"}},{"addr":{"city":"LA"}}]' | aux4 json filter addr.city --value LA
+# [{"addr":{"city":"LA"}}]
+
+# Substring match on a string, membership match on an array
+echo '[{"tags":["a","b"]},{"tags":["c"]}]' | aux4 json filter tags --op contains --value b
+# [{"tags":["a","b"]}]
+
+# Streaming (NDJSON in)
+aux4 mdb stream --file inventory.mdb --table Products | aux4 json filter UnitsInStock --op lte --value 5 --inputStream true
 ```
 
 ### `aux4 json describe`

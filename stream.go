@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -87,9 +88,59 @@ func readStdin() ([]byte, error) {
 	return io.ReadAll(os.Stdin)
 }
 
+// readRecords reads array records from stdin. Without inputStream it expects a
+// single JSON array; with inputStream it reads NDJSON, one JSON value per line.
+// Records are returned as raw messages so field order and number formatting are
+// preserved untouched.
+func readRecords(inputStream bool) ([]json.RawMessage, error) {
+	if inputStream {
+		records := []json.RawMessage{}
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Buffer(make([]byte, 1024*1024), 10*1024*1024)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			var raw json.RawMessage
+			dec := json.NewDecoder(strings.NewReader(line))
+			dec.UseNumber()
+			if err := dec.Decode(&raw); err != nil {
+				return nil, fmt.Errorf("invalid JSON: %s", line)
+			}
+			records = append(records, raw)
+		}
+		if err := scanner.Err(); err != nil {
+			return nil, err
+		}
+		return records, nil
+	}
+
+	dec := json.NewDecoder(bufio.NewReaderSize(os.Stdin, 1024*1024))
+	dec.UseNumber()
+	var input json.RawMessage
+	if err := dec.Decode(&input); err != nil {
+		return nil, err
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal(input, &arr); err != nil {
+		return nil, fmt.Errorf("expected a JSON array")
+	}
+	return arr, nil
+}
+
 // extractPath navigates a dot-separated path through JSON data.
-// Supports paths like "$.foo.bar", "foo.bar", "foo.0.name" (array index), and
-// negative indices that count from the end, e.g. "foo.-1.name" (last element).
+// Supports paths like "$.foo.bar", "foo.bar", "foo.0.name" (array index),
+// negative indices that count from the end, e.g. "foo.-1.name" (last element),
+// and a "*" wildcard segment that projects across an array.
+//
+// A "*" segment maps every element of the array at that point:
+//   - "$.users.*"      returns the array elements themselves (["a","b"]).
+//   - "$.users.*.name" returns a flat array of each element's name
+//     (["Alice","Bob"]). Elements that do not have the remaining path are
+//     skipped, so the result only contains values that resolve cleanly.
+//
+// Wildcards compose: any number of "*" segments may appear in a path.
 func extractPath(data []byte, path string) ([]byte, error) {
 	// Strip leading $ and .
 	path = strings.TrimPrefix(path, "$")
@@ -100,9 +151,37 @@ func extractPath(data []byte, path string) ([]byte, error) {
 	}
 
 	parts := strings.Split(path, ".")
-	current := data
+	return extractParts(data, parts)
+}
 
-	for _, part := range parts {
+// extractParts walks the remaining path segments through current. It is
+// recursive so a "*" segment can project across an array and then map the rest
+// of the path over each element.
+func extractParts(current []byte, parts []string) ([]byte, error) {
+	for i, part := range parts {
+		if part == "*" {
+			var arr []json.RawMessage
+			if err := json.Unmarshal(current, &arr); err != nil {
+				return nil, fmt.Errorf("expected array at '*': %w", err)
+			}
+			remaining := parts[i+1:]
+			if len(remaining) == 0 {
+				// No further path: return the elements as an array.
+				return rawArray(arr), nil
+			}
+			// Map each element through the remaining path, skipping any element
+			// that does not resolve (missing field, wrong shape, out of bounds).
+			projected := make([]json.RawMessage, 0, len(arr))
+			for _, el := range arr {
+				val, err := extractParts(el, remaining)
+				if err != nil {
+					continue
+				}
+				projected = append(projected, val)
+			}
+			return rawArray(projected), nil
+		}
+
 		// Try as array index
 		if idx, err := strconv.Atoi(part); err == nil {
 			var arr []json.RawMessage

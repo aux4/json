@@ -262,6 +262,85 @@
           }
         },
         {
+          "name": "sort",
+          "execute": [
+            "stdin:${packageDir}/aux4-json sort param(by**) params(order, inputStream)"
+          ],
+          "help": {
+            "text": "Sort a JSON array by one or more fields",
+            "variables": [
+              {
+                "name": "by",
+                "text": "Field to sort by (dot-path); repeat for multi-key sort. Omit to sort scalar arrays by value",
+                "multiple": true,
+                "default": ""
+              },
+              {
+                "name": "order",
+                "text": "Sort order",
+                "default": "asc",
+                "options": [
+                  "asc",
+                  "desc"
+                ]
+              },
+              {
+                "name": "inputStream",
+                "text": "Read NDJSON from stdin instead of a JSON array",
+                "default": "false",
+                "options": [
+                  "true",
+                  "false"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "filter",
+          "execute": [
+            "stdin:${packageDir}/aux4-json filter params(field, op, value, inputStream)"
+          ],
+          "help": {
+            "text": "Keep the records of a JSON array matching a predicate",
+            "variables": [
+              {
+                "name": "field",
+                "text": "Dot-path tested on each record, e.g. age or address.city",
+                "arg": true
+              },
+              {
+                "name": "op",
+                "text": "Comparison operator",
+                "default": "eq",
+                "options": [
+                  "eq",
+                  "ne",
+                  "gt",
+                  "lt",
+                  "gte",
+                  "lte",
+                  "contains"
+                ]
+              },
+              {
+                "name": "value",
+                "text": "Value to compare the field against",
+                "default": ""
+              },
+              {
+                "name": "inputStream",
+                "text": "Read NDJSON from stdin instead of a JSON array",
+                "default": "false",
+                "options": [
+                  "true",
+                  "false"
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "peek",
           "execute": [
             "stdin:${packageDir}/aux4-json peek values(path, limit, format)"

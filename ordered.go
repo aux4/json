@@ -147,6 +147,22 @@ func rawText(raw json.RawMessage) string {
 	return string(trimmed)
 }
 
+// asNumber reads a raw JSON value as a float64 when it is a JSON number.
+// Quoted strings, booleans and null return ok=false so callers fall back to a
+// string comparison. The exact source text is parsed so large integer ids are
+// compared by value rather than by their %v float rendering.
+func asNumber(raw json.RawMessage) (float64, bool) {
+	t := string(bytes.TrimSpace(raw))
+	if t == "" || t[0] == '"' {
+		return 0, false
+	}
+	f, err := strconv.ParseFloat(t, 64)
+	if err != nil {
+		return 0, false
+	}
+	return f, true
+}
+
 // resolveRaw walks a dotted path through raw JSON and returns the raw value at
 // the end of it, leaving that value's own bytes untouched.
 func resolveRaw(raw json.RawMessage, path []string) (json.RawMessage, bool) {
